@@ -1,0 +1,17 @@
+server:
+  port: 8080
+  servlet.context-path: /api/v1
+spring:
+  application.name: yuki-shopping
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:yuki_shopping}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: Asia/Shanghai
+mybatis-plus:
+  mapper-locations: classpath:/mapper/**/*.xml
+  configuration.map-underscore-to-camel-case: true
+logging.level.com.yuki.shopping: INFO
