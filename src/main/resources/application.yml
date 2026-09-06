@@ -4,20 +4,24 @@ server:
     context-path: /api/v1
 
 spring:
+  config:
+    # 读取项目根目录 .env（KEY=VALUE 格式），缺失时直接使用系统环境变量
+    import: optional:file:.env[.properties]
+
   application:
     name: yuki-shopping
 
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:yuki_shopping}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
     username: ${DB_USERNAME:yuki}
-    password: ${DB_PASSWORD:yuki123456}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:redis123456}
+      password: ${REDIS_PASSWORD}
       database: 0
 
   jackson:
@@ -28,7 +32,22 @@ mybatis-plus:
   mapper-locations: classpath:/mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+jwt:
+  secret: ${JWT_SECRET}
+  issuer: yuki-shopping
+  access-token-ttl-minutes: 120
+  refresh-token-ttl-days: 7
 
 logging:
   level:
     com.yuki.shopping: INFO
+  pattern:
+    level: "%5p [%X{traceId:-}]"

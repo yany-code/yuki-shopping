@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yuki.shopping.modules.product.repository.mapper.SkuMapper">
+
+    <!-- 防超卖核心：仅当剩余库存充足时原子扣减，失败返回 0 行，由调用方回滚整单 -->
+    <update id="deductStock">
+        UPDATE t_sku
+        SET stock         = stock - #{quantity},
+            stock_version = stock_version + 1
+        WHERE id = #{skuId}
+          AND status = 1
+          AND stock &gt;= #{quantity}
+    </update>
+</mapper>

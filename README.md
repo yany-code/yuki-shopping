@@ -4,8 +4,8 @@
 
 ## 启动
 
-1. 执行 `sql/01_schema.sql` 初始化数据库。
-2. 设置 `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USERNAME`、`DB_PASSWORD`，或修改 `src/main/resources/application.yml`。
+1. 执行 `docs/01_schema.sql` 初始化数据库，再执行 `docs/02_seed.sql` 写入演示数据（管理员/用户/分类/品牌/商品）。
+2. 复制 `.env.example` 为 `.env` 并填入密码和 JWT 密钥（`cp .env.example .env`，密钥可用 `openssl rand -hex 32` 生成）。docker-compose 与 Spring 应用共用该文件；生产环境不部署 `.env`，直接注入同名环境变量即可。
 3. 安装 Maven 后执行 `mvn spring-boot:run`，或导入 IntelliJ IDEA 后运行 `YukiShoppingApplication`。
 
 当前骨架按 `modules/{user,product,cart,order,admin}` 划分，已提供统一响应、分页对象、参数校验、全局异常处理、Spring Security 访问边界，以及接口文档中主要客户端和管理端路由占位。控制器中的 `TODO` 是后续接入 entity、mapper、service 和 JWT 登录实现的明确扩展点；数据库事务、库存乐观锁和支付验签必须在 service 层实现，不能放在控制器中。
