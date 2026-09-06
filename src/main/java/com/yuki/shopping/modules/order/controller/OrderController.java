@@ -2,63 +2,71 @@ package com.yuki.shopping.modules.order.controller;
 
 import com.yuki.shopping.common.api.ApiResponse;
 import com.yuki.shopping.common.api.PageResult;
+import com.yuki.shopping.modules.order.domain.OrderCreateDTO;
+import com.yuki.shopping.modules.order.domain.OrderPayDTO;
+import com.yuki.shopping.modules.order.domain.CreateOrderResult;
+import com.yuki.shopping.modules.order.domain.OrderDetailVO;
+import com.yuki.shopping.modules.order.domain.OrderListVO;
+import com.yuki.shopping.modules.order.domain.OrderPreviewVO;
+import com.yuki.shopping.modules.order.domain.PayResultVO;
+import com.yuki.shopping.modules.product.domain.ReviewDTO;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/orders")
 public class OrderController {
 
-    public record OrderItem(@NotNull Long skuId, @Min(1) Integer quantity) {}
-    public record CreateRequest(@NotNull Long addressId, @NotEmpty List<@Valid OrderItem> items, String remark) {}
-    public record PayRequest(@NotNull Integer payType) {}
-
     @PostMapping("/preview")
-    public ApiResponse<?> preview(@Valid @RequestBody CreateRequest r) {
-        return ApiResponse.ok(Map.of("items", r.items()));
+    public ApiResponse<OrderPreviewVO> preview(@Valid @RequestBody OrderCreateDTO request) {
+        // TODO 待接入订单服务
+        return ApiResponse.ok();
     }
 
     @PostMapping
-    public ApiResponse<?> create(@Valid @RequestBody CreateRequest r) {
-        return ApiResponse.ok(Map.of("message", "TODO: transactional order service"));
+    public ApiResponse<CreateOrderResult> create(@Valid @RequestBody OrderCreateDTO request) {
+        // TODO 待接入订单服务(事务 + 幂等)
+        return ApiResponse.ok();
     }
 
     @GetMapping
-    public ApiResponse<?> page(@RequestParam(defaultValue="1") long page,
-                               @RequestParam(defaultValue="20") long pageSize,
-                               @RequestParam(required=false) Integer status) {
+    public ApiResponse<PageResult<OrderListVO>> page(@RequestParam(defaultValue = "1") long page,
+                                                     @RequestParam(defaultValue = "20") long pageSize,
+                                                     @RequestParam(required = false) Integer status) {
+        // TODO 待接入订单服务
         return ApiResponse.ok(new PageResult<>(List.of(), page, pageSize, 0));
     }
 
     @GetMapping("/{orderNo}")
-    public ApiResponse<?> detail(@PathVariable String orderNo) {
+    public ApiResponse<OrderDetailVO> detail(@PathVariable String orderNo) {
+        // TODO 待接入订单服务
         return ApiResponse.ok();
     }
 
     @PostMapping("/{orderNo}/cancel")
-    public ApiResponse<?> cancel(@PathVariable String orderNo) {
+    public ApiResponse<Void> cancel(@PathVariable String orderNo) {
+        // TODO 待接入订单服务
         return ApiResponse.ok();
     }
 
     @PostMapping("/{orderNo}/confirm")
-    public ApiResponse<?> confirm(@PathVariable String orderNo) {
+    public ApiResponse<Void> confirm(@PathVariable String orderNo) {
+        // TODO 待接入订单服务
         return ApiResponse.ok();
     }
 
     @PostMapping("/{orderNo}/pay")
-    public ApiResponse<?> pay(@PathVariable String orderNo, @Valid @RequestBody PayRequest r) {
+    public ApiResponse<PayResultVO> pay(@PathVariable String orderNo, @Valid @RequestBody OrderPayDTO request) {
+        // TODO 待接入支付服务
         return ApiResponse.ok();
     }
 
     @PostMapping("/{orderNo}/items/{itemId}/review")
-    public ApiResponse<?> review(@PathVariable String orderNo, @PathVariable Long itemId,
-                                 @RequestBody Map<String,Object> body) {
+    public ApiResponse<Void> review(@PathVariable String orderNo, @PathVariable Long itemId,
+                                    @Valid @RequestBody ReviewDTO request) {
+        // TODO 待接入评价服务
         return ApiResponse.ok();
     }
 }

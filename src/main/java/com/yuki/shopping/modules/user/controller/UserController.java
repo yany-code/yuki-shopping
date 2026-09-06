@@ -1,49 +1,58 @@
 package com.yuki.shopping.modules.user.controller;
 
 import com.yuki.shopping.common.api.ApiResponse;
+import com.yuki.shopping.modules.user.domain.AddressDTO;
+import com.yuki.shopping.modules.user.domain.UserProfileDTO;
+import com.yuki.shopping.modules.user.domain.AddressVO;
+import com.yuki.shopping.modules.user.domain.UserVO;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.*;
 import org.springframework.web.bind.annotation.*;
 
-@RestController @RequestMapping("/users/me")
+import java.util.List;
+
+@RestController
+@RequestMapping("/users/me")
 public class UserController {
 
-    public record ProfileRequest(@Size(max=50) String nickname, @Size(max=20) String phone, @Email String email, String avatar) {}
-    public record AddressRequest(@NotBlank String receiverName, @NotBlank String receiverPhone, @NotBlank String province,
-                                 @NotBlank String city, @NotBlank String district, @NotBlank String detail, Boolean isDefault) {}
-
     @GetMapping
-    public ApiResponse<?> me() {
+    public ApiResponse<UserVO> me() {
+        // TODO 待接入用户服务
         return ApiResponse.ok();
     }
 
     @PutMapping
-    public ApiResponse<?> update(@Valid @RequestBody ProfileRequest request) {
-        return ApiResponse.ok(request);
+    public ApiResponse<UserVO> update(@Valid @RequestBody UserProfileDTO request) {
+        // TODO 待接入用户服务
+        return ApiResponse.ok();
     }
 
     @GetMapping("/addresses")
-    public ApiResponse<?> addresses() {
-        return ApiResponse.ok(java.util.List.of());
+    public ApiResponse<List<AddressVO>> addresses() {
+        // TODO 待接入地址服务
+        return ApiResponse.ok(List.of());
     }
 
     @PostMapping("/addresses")
-    public ApiResponse<?> add(@Valid @RequestBody AddressRequest request) {
-        return ApiResponse.ok(request);
+    public ApiResponse<AddressVO> add(@Valid @RequestBody AddressDTO request) {
+        // TODO 待接入地址服务
+        return ApiResponse.ok();
     }
 
     @PutMapping("/addresses/{id}")
-    public ApiResponse<?> edit(@PathVariable Long id, @Valid @RequestBody AddressRequest request) {
-        return ApiResponse.ok(request);
+    public ApiResponse<AddressVO> edit(@PathVariable Long id, @Valid @RequestBody AddressDTO request) {
+        // TODO 待接入地址服务
+        return ApiResponse.ok();
     }
 
     @DeleteMapping("/addresses/{id}")
-    public ApiResponse<?> delete(@PathVariable Long id) {
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        // TODO 待接入地址服务
         return ApiResponse.ok();
     }
 
     @PutMapping("/addresses/{id}/default")
-    public ApiResponse<?> setDefault(@PathVariable Long id) {
+    public ApiResponse<Void> setDefault(@PathVariable Long id) {
+        // TODO 待接入地址服务
         return ApiResponse.ok();
     }
 

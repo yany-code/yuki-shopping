@@ -16,7 +16,8 @@ public record ApiResponse<T>(int code, String message, T data, String traceId) {
         return new ApiResponse<>(code, message, null, currentTraceId());
     }
 
-    /** 优先取请求级 traceId（TraceIdFilter 写入 MDC）；无请求上下文时（如定时任务）退化为随机值 */
+    /** 优先取请求级 traceId（TraceIdFilter 写入 MDC）；
+        无请求上下文时（如定时任务）退化为随机值 */
     private static String currentTraceId() {
         String traceId = MDC.get(TraceIdFilter.MDC_KEY);
         return traceId != null ? traceId : UUID.randomUUID().toString();
