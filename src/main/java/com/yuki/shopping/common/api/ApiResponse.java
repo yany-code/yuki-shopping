@@ -1,10 +1,16 @@
 package com.yuki.shopping.common.api;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.yuki.shopping.common.web.TraceIdFilter;
 import org.slf4j.MDC;
 
 import java.util.UUID;
-public record ApiResponse<T>(int code, String message, T data, String traceId) {
+public record ApiResponse<T>(
+        int code,
+        String message,
+        T data,
+        String traceId
+) {
 
     public static <T> ApiResponse<T> ok(T data) {
         return new ApiResponse<>(0, "ok", data, currentTraceId());

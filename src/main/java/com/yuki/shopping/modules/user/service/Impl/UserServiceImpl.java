@@ -85,7 +85,7 @@ public class UserServiceImpl implements UserService {
         address.setUserId(SecurityUtils.currentUserId());
         //复制地址信息
         copyAddress(request,address);
-        if(Integer.valueOf(1).equals(address.getDeleted())){
+        if(Integer.valueOf(1).equals(address.getIsDefault())){
             //取消其余默认地址
             clearDefault(address.getUserId());
         }
