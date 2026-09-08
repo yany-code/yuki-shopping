@@ -42,7 +42,7 @@ public class AuthServiceImpl implements AuthService {
         //2.不存在则报错
         if(user == null || user.getStatus()!=1
             ||!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())){
-            throw new BusinessException(40900,"用户名或密码错误");
+            throw new BusinessException(40100,"用户名或密码错误");
         }
         //3.存在返回
         return issueTokens(user);

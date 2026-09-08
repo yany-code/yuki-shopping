@@ -9,6 +9,7 @@ import com.yuki.shopping.modules.user.mapper.UserAddressMapper;
 import com.yuki.shopping.modules.user.mapper.UserMapper;
 import com.yuki.shopping.modules.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,16 +40,18 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserVO updateProfile(UserProfileDTO request) {
         User user = requireCurrentUser();
+
         //仅在传入了手机号并且不为空,新手机号与旧手机号不一致时检验
         if(request.getPhone() != null && !request.getPhone().isBlank()
                 && !request.getPhone().equals(user.getPhone())){
             Long count = userMapper.selectCount(new LambdaQueryWrapper<User>()
                     .eq(User::getPhone,request.getPhone())
-                    .eq(User::getId,user.getId()));
+                    .ne(User::getId,user.getId()));
             if(count > 0){
                 throw new BusinessException(40900,"手机号已被占用");
             }
         }
+
         //updateById默认跳过null字段，天然实现局部更新
         User patch = new User();
         patch.setId(user.getId());
@@ -56,7 +59,9 @@ public class UserServiceImpl implements UserService {
         patch.setPhone(request.getPhone());
         patch.setEmail(request.getEmail());
         patch.setAvatar(request.getAvatar());
+
         userMapper.updateById(patch);
+
         return toUserVO(requireCurrentUser());
     }
 
@@ -81,14 +86,25 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public AddressVO addAddress(AddressDTO request) {
+//        UserAddress address = new UserAddress();
+//        address.setUserId(SecurityUtils.currentUserId());
+
+        Long userId = SecurityUtils.currentUserId();
+
+        //锁住当前用户行，同一用户的地址默认状态变更为串行执行，防止并行导致的用户多默认地址的情况发生
+        requireCurrentUserForUpdate();
+
         UserAddress address = new UserAddress();
-        address.setUserId(SecurityUtils.currentUserId());
+        address.setUserId(userId);
+
         //复制地址信息
         copyAddress(request,address);
+
         if(Integer.valueOf(1).equals(address.getIsDefault())){
             //取消其余默认地址
             clearDefault(address.getUserId());
         }
+
         addressMapper.insert(address);
         return toAddressVO(address);
     }
@@ -102,14 +118,22 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public AddressVO updateAddress(Long id, AddressDTO request) {
-//        拿取当前地址
+        Long userId = SecurityUtils.currentUserId();
+
+        //必须先锁用户行，再操作默认地址
+        requireCurrentUserForUpdate();
+
+        //拿取当前地址
         UserAddress address = requireOwnedAddress(id);
+
         //复制新地址内容
         copyAddress(request,address);
+
         if(Integer.valueOf(1).equals(address.getIsDefault())){
             //清楚原先默认地址
             clearDefault(address.getUserId());
         }
+
         //更新地址
         addressMapper.updateById(address);
         return toAddressVO(address);
@@ -133,11 +157,19 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public void setDefaultAddress(Long id) {
+        Long userId = SecurityUtils.currentUserId();
+
+        //保证统一用户的默认地址更改串行化
+        requireCurrentUserForUpdate();
+
         UserAddress address = requireOwnedAddress(id);
+
         clearDefault(address.getUserId());
+
         UserAddress update = new UserAddress();
         update.setId(id);
         update.setIsDefault(1);
+
         addressMapper.updateById(update);
     }
 
@@ -148,12 +180,15 @@ public class UserServiceImpl implements UserService {
      */
     private UserAddress requireOwnedAddress(Long id){
         UserAddress address = addressMapper.selectById(id);
+
         if(address == null){
             throw new BusinessException(40400,"地址不存在");
         }
+
         if(!address.getUserId().equals(SecurityUtils.currentUserId())){
             throw new BusinessException(40300,"无权限操作该地址");
         }
+
         return address;
     }
 
@@ -163,9 +198,27 @@ public class UserServiceImpl implements UserService {
      */
     private User requireCurrentUser(){
         User user = userMapper.selectById(SecurityUtils.currentUserId());
+
         if(user == null){
             throw new BusinessException(40100,"登录状态已失效");
         }
+
+        return user;
+    }
+
+    /**
+     * 悲观锁拿取用户对象，防止对线程并行对默认地址进行修改，导致一个用户拥有多个默认地址
+     * @return
+     */
+    private User requireCurrentUserForUpdate(){
+        Long userId = SecurityUtils.currentUserId();
+
+        User user = userMapper.selectByIdForUpdate(userId);
+
+        if(user == null){
+            throw new BusinessException(40100,"登录状态已失效");
+        }
+
         return user;
     }
 
@@ -176,7 +229,9 @@ public class UserServiceImpl implements UserService {
      */
     private void clearDefault(Long userId){
         UserAddress clear = new UserAddress();
+
         clear.setIsDefault(0);
+
         addressMapper.update(clear,new LambdaUpdateWrapper<UserAddress>()
                 .eq(UserAddress::getUserId,userId)
                 .eq(UserAddress::getIsDefault,1));
@@ -194,7 +249,16 @@ public class UserServiceImpl implements UserService {
         address.setCity(request.getCity());
         address.setDistrict(request.getDistrict());
         address.setDetail(request.getDetail());
-        address.setIsDefault(Integer.valueOf(1).equals(request.getIsDefault())?1:0);
+        address.setIsDefault(normalizeIsDefault(request.getIsDefault()));
+    }
+
+    /**
+     * 判断地址状态
+     * @param isDefault
+     * @return
+     */
+    private int normalizeIsDefault(Integer isDefault){
+        return isDefault == null ? 0 : isDefault;
     }
 
     /**
@@ -204,12 +268,14 @@ public class UserServiceImpl implements UserService {
      */
     private UserVO toUserVO(User user){
         UserVO vo = new UserVO();
+
         vo.setId(user.getId());
         vo.setUsername(user.getUsername());
         vo.setNickname(user.getNickname());
         vo.setPhone(user.getPhone());
         vo.setEmail(user.getEmail());
         vo.setAvatar(user.getAvatar());
+
         return vo;
     }
 
@@ -220,6 +286,7 @@ public class UserServiceImpl implements UserService {
      */
     private AddressVO toAddressVO(UserAddress address){
         AddressVO vo = new AddressVO();
+
         vo.setId(address.getId());
         vo.setReceiverName(address.getReceiverName());
         vo.setReceiverPhone(address.getReceiverPhone());
@@ -228,6 +295,7 @@ public class UserServiceImpl implements UserService {
         vo.setDistrict(address.getDistrict());
         vo.setDetail(address.getDetail());
         vo.setIsDefault(address.getIsDefault());
+
         return vo;
     }
 }
