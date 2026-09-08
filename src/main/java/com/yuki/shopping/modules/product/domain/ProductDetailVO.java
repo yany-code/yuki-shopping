@@ -38,4 +38,9 @@ public class ProductDetailVO {
 
     /** 商品图集 */
     private List<String> images;
+
+    /**
+     * 评价摘要(均分/数量)
+     */
+    private ReviewSummaryVO reviewSummary;
 }

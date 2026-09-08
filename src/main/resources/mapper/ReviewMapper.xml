@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yuki.shopping.modules.product.mapper.ReviewMapper">
+
+    <!-- product 模块不引入 user 模块类型：昵称作为展示字段在 SQL 层联查，匿名时脱敏 -->
+    <select id="selectVisiblePage" resultType="com.yuki.shopping.modules.product.domain.Review">
+        SELECT r.id, r.user_id, r.order_id, r.order_item_id, r.product_id, r.sku_id,
+        r.rating, r.content, r.images, r.is_anonymous, r.status, r.created_at,
+        IF(r.is_anonymous = 1, CONCAT(LEFT(u.nickname, 1), '**'), u.nickname) AS nickname
+        FROM t_review r
+        LEFT JOIN t_user u ON u.id = r.user_id
+        WHERE r.product_id = #{productId}
+        AND r.status = 1
+        <if test="rating != null">
+            AND r.rating = #{rating}
+        </if>
+        ORDER BY r.id DESC
+    </select>
+</mapper>

@@ -20,25 +20,41 @@ public class Review {
 
     private Long orderId;
 
-    /** 订单明细ID，唯一约束 uk_order_item_id：一条明细仅可评价一次 */
+    /**
+     * 评价人昵称(评价列表联查填充，非表字段)
+     */
+    @TableField(exist = false)
+    private String nickname;
+
+    /**
+     * 订单明细ID，唯一约束 uk_order_item_id：一条明细仅可评价一次
+     */
     private Long orderItemId;
 
     private Long productId;
 
     private Long skuId;
 
-    /** 评分 1-5星 */
+    /**
+     *  评分 1-5星
+     */
     private Integer rating;
 
     private String content;
 
-    /** 评价图片URL数组 JSON */
+    /**
+     * 评价图片URL数组 JSON
+     */
     private String images;
 
-    /** 匿名评价 0-否 1-是 */
+    /**
+     * 匿名评价 0-否 1-是
+     */
     private Integer isAnonymous;
 
-    /** 0-隐藏(违规) 1-显示 */
+    /**
+     * 0-隐藏(违规) 1-显示
+     */
     private Integer status;
 
     @TableField(fill = FieldFill.INSERT)
