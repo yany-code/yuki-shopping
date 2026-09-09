@@ -27,6 +27,12 @@ public class Review {
     private String nickname;
 
     /**
+     * 评价人头像(评价列表联查填充，非表字段；匿名时为 null)
+     */
+    @TableField(exist = false)
+    private String avatar;
+
+    /**
      * 订单明细ID，唯一约束 uk_order_item_id：一条明细仅可评价一次
      */
     private Long orderItemId;

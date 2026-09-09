@@ -358,14 +358,15 @@ public class ProductServiceImpl implements ProductService {
         vo.setId(review.getId());
         vo.setUserId(review.getUserId());
         vo.setNickname(review.getNickname());
+        vo.setAvatar(review.getAvatar());
         vo.setProductId(review.getProductId());
         vo.setSkuId(review.getSkuId());
         vo.setRating(review.getRating());
         vo.setContent(review.getContent());
         vo.setImages(parseImages(review.getImages()));
         vo.setIsAnonymous(review.getIsAnonymous());
-        vo.setStatus(review.getStatus());
         vo.setCreatedAt(review.getCreatedAt());
+        // status 为审核内部字段，不下发 C 端
 
         return vo;
     }

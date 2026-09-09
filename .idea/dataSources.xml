@@ -41,7 +41,7 @@
       </jdbc-additional-properties>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
-    <data-source source="LOCAL" name="jdbc:mysql://localhost:3306/yuki_shopping?useUnicode=true&amp;characterEncoding=utf8&amp;serverTimezone=Asia/Shanghai [DEBUG]" group="​YukiShoppingApplication" uuid="0e1fb6a2-1851-4005-a8c6-32a2551dae32">
+    <data-source source="LOCAL" name="jdbc:mysql://localhost:3306/yuki_shopping?useUnicode=true&amp;characterEncoding=utf8&amp;serverTimezone=Asia/Shanghai [DEBUG]" group="​YukiShoppingApplication" uuid="5a4b727b-a0b9-4e2a-b6e4-77bc258ea798">
       <driver-ref>mysql.8</driver-ref>
       <synchronize>true</synchronize>
       <imported>true</imported>

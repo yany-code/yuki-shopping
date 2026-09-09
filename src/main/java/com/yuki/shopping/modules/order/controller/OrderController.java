@@ -9,8 +9,10 @@ import com.yuki.shopping.modules.order.domain.OrderListVO;
 import com.yuki.shopping.modules.order.domain.OrderPayDTO;
 import com.yuki.shopping.modules.order.domain.OrderPreviewVO;
 import com.yuki.shopping.modules.order.domain.PayResultVO;
+import com.yuki.shopping.modules.order.domain.ReviewCreatedVO;
 import com.yuki.shopping.modules.order.service.OrderService;
 import com.yuki.shopping.modules.order.service.PaymentService;
+import com.yuki.shopping.modules.order.service.ReviewService;
 import com.yuki.shopping.modules.product.domain.ReviewDTO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,7 @@ public class OrderController {
 
     private final OrderService orderService;
     private final PaymentService paymentService;
+    private final ReviewService reviewService;
 
     @PostMapping("/preview")
     public ApiResponse<OrderPreviewVO> preview(@Valid @RequestBody OrderCreateDTO request) {
@@ -66,9 +69,8 @@ public class OrderController {
     }
 
     @PostMapping("/{orderNo}/items/{itemId}/review")
-    public ApiResponse<Void> review(@PathVariable String orderNo, @PathVariable Long itemId,
-                                    @Valid @RequestBody ReviewDTO request) {
-        // TODO 待接入评价服务（阶段 5）
-        return ApiResponse.ok();
+    public ApiResponse<ReviewCreatedVO> review(@PathVariable String orderNo, @PathVariable Long itemId,
+                                               @Valid @RequestBody ReviewDTO request) {
+        return ApiResponse.ok(reviewService.review(orderNo, itemId, request));
     }
 }
