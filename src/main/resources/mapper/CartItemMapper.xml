@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yuki.shopping.modules.cart.mapper.CartItemMapper">
+
+    <!-- 验收项 1：同用户同 SKU 并发加购最终只有一条记录。
+         单条原子 upsert 撞 uk_user_sku 时转累加；AS new 为 MySQL 8.0.19+ 行别名语法。
+         注意：UPDATE 分支里引用已有行的列必须用表名限定（t_cart_item.quantity），
+         否则与 new 行的同名列构成 ambiguous；自定义 SQL 不走 MP 自动填充，时间字段由列默认值兜底 -->
+    <insert id="upsertAdd">
+        INSERT INTO t_cart_item (user_id, sku_id, quantity, checked)
+        VALUES (#{userId}, #{skuId}, #{quantity}, #{checked}) AS new
+        ON DUPLICATE KEY UPDATE quantity = t_cart_item.quantity + new.quantity,
+                                checked = new.checked
+    </insert>
+</mapper>
