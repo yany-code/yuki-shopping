@@ -27,7 +27,7 @@ Idempotency-Key: <客户端生成的唯一值>   # 创建订单、发起支付�
 }
 ```
 
-`code=0` 表示成功。失败时 `data` 为 `null`，业务错误码建议如下：`40000` 参数错误、`40100` 未登录/Token 无效、`40300` 无权限、`40400` 资源不存在、`40900` 状态冲突或库存不足、`42900` 请求过于频繁、`50000` 系统异常。分页统一返回：
+`code=0` 表示成功。失败时 `data` 为 `null`，业务错误码建议如下：`40000` 参数错误、`40100` 未登录/Token 无效、`40300` 无权限、`40400` 资源不存在、`40500` 请求方法不支持、`40900` 状态冲突或库存不足、`42900` 请求过于频繁、`50000` 系统异常。除 `40500` 伴随 HTTP 状态 405 返回外，其余业务错误一律 HTTP 200 + 统一响应体。分页统一返回：
 
 ```json
 {"list": [], "page": 1, "pageSize": 20, "total": 0}
@@ -76,7 +76,7 @@ Idempotency-Key: <客户端生成的唯一值>   # 创建订单、发起支付�
 | GET | `/products/{productId}` | 商品详情、SKU、相册、评价摘要 | `t_product`、`t_sku`、`t_product_image`、`t_review` |
 | GET | `/products/{productId}/reviews` | 评价分页，可按星级筛选 | `t_review` |
 
-`GET /products` 参数：`keyword`、`categoryId`、`brandId`、`minPrice`、`maxPrice`、`sort`（`default|price_asc|price_desc|sales|newest`）、`page`、`pageSize`。商品列表只返回上架且未删除数据，价格取 `priceMin/priceMax`。
+`GET /products` 参数：`keyword`、`categoryId`、`brandId`、`minPrice`、`maxPrice`、`sort`（`default|price_asc|price_desc|sales|newest`）、`page`、`pageSize`。商品列表只返回上架且未删除数据，价格取 `priceMin/priceMax`。参数行为约定：`categoryId` 传任意层级均展开为其自身与全部后代分类的商品（分类不存在返回 `40400`）；价格区间按「区间重叠即命中」过滤，即商品价区 `[priceMin, priceMax]` 与查询区间 `[minPrice, maxPrice]` 有交集即返回；`sort` 非法值返回 `40000`；`page` 必须 ≥ 1、`pageSize` 取值 1~100、价格不得为负且 `minPrice ≤ maxPrice`，违反返回 `40000` 并带字段说明（服务端不静默改写）。`GET /products/{productId}/reviews` 同样受分页与 `rating`（1~5）约束。
 
 ### 3.3 购物车
 
@@ -153,6 +153,13 @@ Idempotency-Key: <客户端生成的唯一值>   # 创建订单、发起支付�
 ## 5. 建议的响应对象
 
 商品详情至少包含：`id`、`name`、`subtitle`、`mainImage`、`detail`、`priceMin`、`priceMax`、`sales`、`skus[]`、`images[]`、`reviewSummary`。订单详情至少包含：`orderNo`、金额字段、`status`、收货快照、`items[]`、物流字段和关键时间；禁止直接暴露数据库内部密码、逻辑删除字段和库存版本号。
+
+响应字段类型约定（服务端全局生效，前端按此解析）：
+
+- 所有金额字段（`price`、`priceMin`、`priceMax`、`payAmount`、`avgRating` 等）序列化为**字符串**，如 `"8999.00"`，保留数据库 DECIMAL 标度；入参同样接受字符串。
+- SKU 的 `specs` 返回**对象**（如 `{"颜色":"黑","容量":"256G"}`），不是需要二次 `JSON.parse` 的字符串；无规格时为 `{}`。
+- 评价的 `images` 返回 URL 字符串数组，无图为 `[]`。
+- 分类树的叶子节点 `children` 为 `[]`（不返回 `null`）。
 
 ## 6. 实现验收清单
 

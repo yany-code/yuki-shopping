@@ -4,9 +4,12 @@ import com.yuki.shopping.common.api.ApiResponse;
 import com.yuki.shopping.common.exception.BusinessException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.validation.BindException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -37,15 +40,31 @@ public class GlobalExceptionHandler {
                 .map(v -> v.getPropertyPath() + " " + v.getMessage()).orElse("请求参数错误"));
     }
 
+    /** GET 查询参数绑定/类型转换失败（如 minPrice=abc），只回字段名不回异常原文 */
+    @ExceptionHandler(BindException.class)
+    public ApiResponse<Void> bind(BindException e) {
+        var fieldError = e.getBindingResult().getFieldError();
+        String message = fieldError == null ? "参数格式错误" : fieldError.getField() + " 参数格式错误";
+        log.warn("参数绑定失败: {}", e.getMessage()); // 原文进日志，不进响应
+        return ApiResponse.fail(40000, message);
+    }
+
     /** 请求体不可读、查询参数类型转换失败等参数级错误 */
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
     public ApiResponse<Void> badRequest(Exception e) {
         return ApiResponse.fail(40000, "请求参数错误");
     }
 
-    @ExceptionHandler({NoResourceFoundException.class, HttpRequestMethodNotSupportedException.class})
-    public ApiResponse<Void> notFound(Exception e) {
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ApiResponse<Void> notFound(NoResourceFoundException e) {
         return ApiResponse.fail(40400, "资源不存在");
+    }
+
+    /** 方法不支持：HTTP 405 + 业务码 40500（延续 HTTP×100 规律） */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> methodNotSupported(HttpRequestMethodNotSupportedException e) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(ApiResponse.fail(40500, "请求方法不支持"));
     }
 
     @ExceptionHandler(AuthenticationException.class)

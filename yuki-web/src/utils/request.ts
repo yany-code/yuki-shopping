@@ -1,7 +1,7 @@
 import axios from 'axios'
 import type { ApiResponse } from '@/types/api'
 import type { TokenVO } from '@/types/auth'
-import { userTokens } from '@/utils/token'
+import { adminTokens, userTokens } from '@/utils/token'
 import { useUserStore } from '@/stores/user'
 
 declare module 'axios' {
@@ -72,5 +72,29 @@ http.interceptors.response.use(
     return Promise.reject(new ApiError(body.code, body.message ?? '请求失败', body.traceId))
   },
   // 后端约定 HTTP 恒为 200，走到这里只有超时/断网等传输层错误，统一包装避免原生 AxiosError 漏到页面
+  () => Promise.reject(new ApiError(-1, '网络异常，请稍后重试')),
+)
+
+// ---- 管理端实例：单独一套 token，/admin/** 无 refresh 端点，40100 直接登出 ----
+
+export const adminHttp = axios.create({ baseURL: '/api/v1', timeout: 10000 })
+
+adminHttp.interceptors.request.use((config) => {
+  const token = adminTokens.getAccess()
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
+adminHttp.interceptors.response.use(
+  (res) => {
+    const body = res.data as ApiResponse<unknown>
+    if (body.code === 0) return body.data as never
+    if (body.code === 40100) {
+      adminTokens.clear()
+      // 不在路由守卫外直接改 location 的场景不存在，这里统一兜底
+      if (!location.pathname.startsWith('/admin/login')) location.href = '/admin/login'
+    }
+    return Promise.reject(new ApiError(body.code, body.message ?? '请求失败', body.traceId))
+  },
   () => Promise.reject(new ApiError(-1, '网络异常，请稍后重试')),
 )

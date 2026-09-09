@@ -14,10 +14,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -82,8 +87,9 @@ public class ProductServiceImpl implements ProductService {
      */
     @Override
     public PageResult<BrandVO> brandPage(long page, long pageSize) {
+        validatePaging(page, pageSize);
         Page<Brand> result = brandMapper.selectPage(
-                new Page<>(Math.max(page, 1), clampPageSize(pageSize)),
+                new Page<>(page, pageSize),
                 new LambdaQueryWrapper<Brand>().orderByAsc(Brand::getId));
         List<BrandVO> vos = result.getRecords().stream().map(this::toBrandVO).toList();
         return new PageResult<>(vos, result.getCurrent(), result.getSize(), result.getTotal());
@@ -91,6 +97,9 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public PageResult<ProductListVO> page(ProductQuery query) {
+
+        validatePaging(query.getPage(), query.getPageSize());
+        validatePriceRange(query);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<Product>()
                 // deleted = 0 由全局逻辑删除自动拼接
@@ -100,9 +109,13 @@ public class ProductServiceImpl implements ProductService {
             wrapper.and(w -> w.like(Product::getName, query.getKeyword())
                     .or().like(Product::getSubtitle, query.getKeyword()));
         }
-        wrapper.eq(query.getCategoryId() != null, Product::getCategoryId, query.getCategoryId())
-                .eq(query.getBrandId() != null, Product::getBrandId, query.getBrandId())
-                .ge(query.getMinPrice() != null, Product::getPriceMin, query.getMinPrice())
+        // 分类筛选：传任意层级都展开为其自身 + 全部后代分类（商品只挂在三级分类上）
+        if (query.getCategoryId() != null) {
+            wrapper.in(Product::getCategoryId, expandCategoryIds(query.getCategoryId()));
+        }
+        wrapper.eq(query.getBrandId() != null, Product::getBrandId, query.getBrandId())
+                // 区间重叠语义：商品价区 [priceMin, priceMax] 与查询 [minPrice, maxPrice] 有交集即命中
+                .ge(query.getMinPrice() != null, Product::getPriceMax, query.getMinPrice())
                 .le(query.getMaxPrice() != null, Product::getPriceMin, query.getMaxPrice());
 
         // sort 白名单翻译，杜绝 ORDER BY 注入；各排序补 id 作稳定次序
@@ -117,7 +130,7 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Page<Product> result = productMapper.selectPage(
-                new Page<>(Math.max(query.getPage(), 1), clampPageSize(query.getPageSize())), wrapper);
+                new Page<>(query.getPage(), query.getPageSize()), wrapper);
         List<ProductListVO> vos = result.getRecords().stream().map(this::toListVO).toList();
         return new PageResult<>(vos, result.getCurrent(), result.getSize(), result.getTotal());
     }
@@ -163,7 +176,8 @@ public class ProductServiceImpl implements ProductService {
         if (rating != null && (rating < 1 || rating > 5)) {
             throw new BusinessException(40000, "rating 取值 1~5");
         }
-        Page<Review> result = Page.of(Math.max(page, 1), clampPageSize(pageSize));
+        validatePaging(page, pageSize);
+        Page<Review> result = Page.of(page, pageSize);
         IPage<Review> reviewPage = reviewMapper.selectVisiblePage(result, productId, rating);
         List<ReviewVO> vos = reviewPage.getRecords().stream().map(this::toReviewVO).toList();
         return new PageResult<>(vos, reviewPage.getCurrent(), reviewPage.getSize(), reviewPage.getTotal());
@@ -183,12 +197,52 @@ public class ProductServiceImpl implements ProductService {
     }
 
     /**
-     * 判断pageSize大小是否合规
-     * @param pageSize
-     * @return
+     * 分页参数显式校验：不合规直接 40000，避免静默改写让前端无从察觉
      */
-    private long clampPageSize(long pageSize) {
-        return Math.min(Math.max(pageSize, 1), MAX_PAGE_SIZE);
+    private void validatePaging(long page, long pageSize) {
+        if (page < 1) {
+            throw new BusinessException(40000, "page 必须大于 0");
+        }
+        if (pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
+            throw new BusinessException(40000, "pageSize 取值 1~" + MAX_PAGE_SIZE);
+        }
+    }
+
+    private void validatePriceRange(ProductQuery query) {
+        if (query.getMinPrice() != null && query.getMinPrice().signum() < 0
+                || query.getMaxPrice() != null && query.getMaxPrice().signum() < 0) {
+            throw new BusinessException(40000, "价格不能为负数");
+        }
+        if (query.getMinPrice() != null && query.getMaxPrice() != null
+                && query.getMinPrice().compareTo(query.getMaxPrice()) > 0) {
+            throw new BusinessException(40000, "minPrice 不能大于 maxPrice");
+        }
+    }
+
+    /** 传任意层级分类，展开为其自身 + 全部后代分类 id（分类表极小，一次查全内存遍历） */
+    private Set<Long> expandCategoryIds(Long categoryId) {
+        List<Category> all = categoryMapper.selectList(null);
+        Map<Long, List<Long>> childrenIndex = new HashMap<>();
+        boolean exists = false;
+        for (Category c : all) {
+            if (c.getId().equals(categoryId)) {
+                exists = true;
+            }
+            childrenIndex.computeIfAbsent(c.getParentId(), k -> new ArrayList<>()).add(c.getId());
+        }
+        if (!exists) {
+            throw new BusinessException(40400, "分类不存在");
+        }
+        Set<Long> ids = new LinkedHashSet<>();
+        Deque<Long> queue = new ArrayDeque<>();
+        queue.add(categoryId);
+        while (!queue.isEmpty()) {
+            Long current = queue.poll();
+            if (ids.add(current)) { // 已访问过则跳过，防脏数据成环死循环
+                queue.addAll(childrenIndex.getOrDefault(current, List.of()));
+            }
+        }
+        return ids;
     }
 
     private List<String> parseImages(String json) {
@@ -200,6 +254,18 @@ public class ProductServiceImpl implements ProductService {
             return objectMapper.readValue(json, new TypeReference<List<String>>() { });
         } catch (Exception e) {
             return List.of(); // 脏数据不能打挂列表接口
+        }
+    }
+
+    /** 库里 specs 是 JSON 字符串，VO 输出结构化对象，前端免二次解析 */
+    private Map<String, String> parseSpecs(String json) {
+        if (json == null || json.isBlank()) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<Map<String, String>>() { });
+        } catch (Exception e) {
+            return Map.of(); // 与 parseImages 同一原则：脏数据不打挂接口
         }
     }
 
@@ -248,7 +314,7 @@ public class ProductServiceImpl implements ProductService {
 
         vo.setId(sku.getId());
         vo.setSkuCode(sku.getSkuCode());
-        vo.setSpecs(sku.getSpecs());
+        vo.setSpecs(parseSpecs(sku.getSpecs()));
         vo.setPrice(sku.getPrice());
         vo.setStock(sku.getStock());
         vo.setImage(sku.getImage());

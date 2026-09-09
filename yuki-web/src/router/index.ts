@@ -3,8 +3,6 @@ import type { RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { adminTokens } from '@/utils/token'
 
-const Placeholder = () => import('@/views/PlaceholderView.vue')
-
 const routes: RouteRecordRaw[] = [
   { path: '/login', name: 'login', component: () => import('@/views/auth/LoginView.vue'), meta: { title: '登录' } },
   { path: '/register', name: 'register', component: () => import('@/views/auth/RegisterView.vue'), meta: { title: '注册' } },
@@ -15,24 +13,25 @@ const routes: RouteRecordRaw[] = [
       { path: '', name: 'home', component: () => import('@/views/HomeView.vue'), meta: { title: '首页' } },
       { path: 'products', name: 'products', component: () => import('@/views/product/ProductListView.vue'), meta: { title: '商品列表' } },
       { path: 'products/:id', name: 'product-detail', component: () => import('@/views/product/ProductDetailView.vue'), meta: { title: '商品详情' } },
-      { path: 'cart', name: 'cart', component: Placeholder, meta: { requiresAuth: true, title: '购物车 · 阶段三' } },
-      { path: 'checkout', name: 'checkout', component: Placeholder, meta: { requiresAuth: true, title: '结算 · 阶段四' } },
-      { path: 'orders', name: 'orders', component: Placeholder, meta: { requiresAuth: true, title: '我的订单 · 阶段四' } },
-      { path: 'orders/:orderNo', name: 'order-detail', component: Placeholder, meta: { requiresAuth: true, title: '订单详情 · 阶段四' } },
+      { path: 'cart', name: 'cart', component: () => import('@/views/cart/CartView.vue'), meta: { requiresAuth: true, title: '购物车' } },
+      { path: 'checkout', name: 'checkout', component: () => import('@/views/order/CheckoutView.vue'), meta: { requiresAuth: true, title: '结算' } },
+      { path: 'orders', name: 'orders', component: () => import('@/views/order/OrderListView.vue'), meta: { requiresAuth: true, title: '我的订单' } },
+      { path: 'orders/:orderNo', name: 'order-detail', component: () => import('@/views/order/OrderDetailView.vue'), meta: { requiresAuth: true, title: '订单详情' } },
       { path: 'profile', name: 'profile', component: () => import('@/views/user/ProfileView.vue'), meta: { requiresAuth: true, title: '个人资料' } },
       { path: 'addresses', name: 'addresses', component: () => import('@/views/user/AddressListView.vue'), meta: { requiresAuth: true, title: '收货地址' } },
     ],
   },
-  { path: '/admin/login', name: 'admin-login', component: Placeholder, meta: { title: '管理端登录 · 阶段六' } },
+  { path: '/admin/login', name: 'admin-login', component: () => import('@/views/admin/AdminLoginView.vue'), meta: { title: '管理端登录' } },
   {
     path: '/admin',
     component: () => import('@/layouts/AdminLayout.vue'),
     meta: { requiresAdmin: true },
     children: [
-      { path: 'products', name: 'admin-products', component: Placeholder, meta: { title: '商品管理 · 阶段六' } },
-      { path: 'orders', name: 'admin-orders', component: Placeholder, meta: { title: '订单管理 · 阶段六' } },
-      { path: 'reviews', name: 'admin-reviews', component: Placeholder, meta: { title: '评价审核 · 阶段六' } },
-      { path: 'categories', name: 'admin-categories', component: Placeholder, meta: { title: '分类管理 · 阶段六' } },
+      { path: '', redirect: '/admin/products' },
+      { path: 'products', name: 'admin-products', component: () => import('@/views/admin/ProductManageView.vue'), meta: { title: '商品管理' } },
+      { path: 'orders', name: 'admin-orders', component: () => import('@/views/admin/OrderManageView.vue'), meta: { title: '订单管理' } },
+      { path: 'reviews', name: 'admin-reviews', component: () => import('@/views/admin/ReviewManageView.vue'), meta: { title: '评价审核' } },
+      { path: 'categories', name: 'admin-categories', component: () => import('@/views/admin/CategoryManageView.vue'), meta: { title: '分类管理' } },
     ],
   },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFoundView.vue'), meta: { title: '页面不存在' } },

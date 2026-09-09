@@ -2,7 +2,9 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { cartApi } from '@/api/cart'
 import { productApi } from '@/api/product'
+import { useUserStore } from '@/stores/user'
 import { showApiError } from '@/utils/feedback'
 import type { PageResult } from '@/types/api'
 import type { ProductDetailVO, ReviewVO, SkuVO } from '@/types/product'
@@ -130,15 +132,31 @@ function requireSku(): SkuVO | null {
   return matchedSku.value
 }
 
-// 阶段三（购物车）与阶段四（下单）完成后替换为真实调用
-function addToCart() {
-  if (!requireSku()) return
-  ElMessage.info('购物车功能将在阶段三上线，当前为浏览演示')
+const user = useUserStore()
+const adding = ref(false)
+
+async function addToCart() {
+  const sku = requireSku()
+  if (!sku) return
+  if (!user.isLogined) {
+    user.redirectToLogin()
+    return
+  }
+  adding.value = true
+  try {
+    await cartApi.add({ skuId: sku.id, quantity: quantity.value })
+    ElMessage.success('已加入购物车')
+  } catch (e) {
+    showApiError(e)
+  } finally {
+    adding.value = false
+  }
 }
 
+// 直接下单流（绕过购物车）需结算页支持直购模式，先用购物车路径
 function buyNow() {
   if (!requireSku()) return
-  ElMessage.info('下单功能将在阶段四上线，当前为浏览演示')
+  ElMessage.info('请先加入购物车，在购物车中勾选结算')
 }
 </script>
 
@@ -207,7 +225,7 @@ function buyNow() {
               <el-button type="danger" size="large" :disabled="!matchedSku || matchedSku.stock === 0" @click="buyNow">
                 立即购买
               </el-button>
-              <el-button type="warning" size="large" :disabled="!matchedSku || matchedSku.stock === 0" @click="addToCart">
+              <el-button type="warning" size="large" :loading="adding" :disabled="!matchedSku || matchedSku.stock === 0" @click="addToCart">
                 加入购物车
               </el-button>
             </div>

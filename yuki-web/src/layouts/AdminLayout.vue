@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { adminTokens } from '@/utils/token'
 
 const route = useRoute()
+const router = useRouter()
 const activeMenu = computed(() => route.path)
+
+function logout() {
+  adminTokens.clear()
+  router.push('/admin/login')
+}
 </script>
 
 <template>
@@ -21,6 +28,10 @@ const activeMenu = computed(() => route.path)
     <el-container>
       <el-header class="header">
         <span>{{ route.meta.title ?? '管理后台' }}</span>
+        <div class="header-right">
+          <router-link to="/" class="mall-link">返回商城</router-link>
+          <el-button size="small" @click="logout">退出登录</el-button>
+        </div>
       </el-header>
       <el-main>
         <router-view />
@@ -55,8 +66,22 @@ const activeMenu = computed(() => route.path)
 .header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   background: #fff;
   border-bottom: 1px solid #e4e7ed;
   font-weight: 600;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.mall-link {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--el-color-primary);
+  text-decoration: none;
 }
 </style>

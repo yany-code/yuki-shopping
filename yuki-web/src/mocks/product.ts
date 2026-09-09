@@ -1,5 +1,14 @@
 import type { PageResult } from '@/types/api'
 import type {
+  AdminProductQuery,
+  AdminProductVO,
+  AdminReviewQuery,
+  AdminReviewVO,
+  CategorySaveDTO,
+  ProductSaveDTO,
+  SkuSaveDTO,
+} from '@/types/admin'
+import type {
   BrandVO,
   CategoryTreeVO,
   ProductDetailVO,
@@ -8,8 +17,10 @@ import type {
   ProductSort,
   ReviewQuery,
   ReviewVO,
+  SkuVO,
 } from '@/types/product'
-import { toCents } from '@/utils/money'
+import { formatCents, toCents } from '@/utils/money'
+import { ApiError } from '@/utils/request'
 
 // 数据照抄 docs/02_seed.sql，图片 URL 与后端种子数据完全一致；
 // 后端阶段二完成、删掉 mock 分支后页面零改动
@@ -231,6 +242,23 @@ const reviews: ReviewVO[] = [
   { id: 8, userId: 2, nickname: 'Tom', productId: 7, skuId: 15, rating: 2, content: '性能没问题，但高负载风扇噪音偏大，介意慎拍。', isAnonymous: 0, status: 1, createdAt: '2026-09-07 19:45:00' },
 ]
 
+// 库存是可变状态：下单扣减、取消恢复，模拟后端条件更新
+const stockMap = new Map<number, number>()
+Object.values(skus)
+  .flat()
+  .forEach((s) => stockMap.set(s.id, s.stock))
+
+/** SKU 规格 JSON → 快照文本 "颜色:黑;存储:256G"（与订单/购物车快照格式一致） */
+function specsSnapshot(specsJson: string): string {
+  try {
+    return Object.entries(JSON.parse(specsJson) as Record<string, string>)
+      .map(([k, v]) => `${k}:${v}`)
+      .join(';')
+  } catch {
+    return specsJson
+  }
+}
+
 // ---- 查询逻辑：模拟后端规范（上架过滤、筛选、排序、分页） ----
 
 function pageOf<T>(list: T[], page = 1, pageSize = 20): PageResult<T> {
@@ -256,6 +284,57 @@ function toListVO(p: SeedProduct): ProductListVO {
     id: p.id, name: p.name, subtitle: p.subtitle, mainImage: p.mainImage,
     priceMin: p.priceMin, priceMax: p.priceMax, sales: p.sales,
   }
+}
+
+// ---- 管理端辅助 ----
+
+function toAdminVO(p: SeedProduct): AdminProductVO {
+  return {
+    id: p.id, categoryId: p.categoryId, brandId: p.brandId,
+    name: p.name, subtitle: p.subtitle, mainImage: p.mainImage,
+    priceMin: p.priceMin, priceMax: p.priceMax, sales: p.sales, status: p.status,
+  }
+}
+
+/** SKU 增删改后重算 SPU 价格区间（与后端一致：取启用 SKU 的 min/max） */
+function recalcPriceRange(p: SeedProduct) {
+  const list = skus[p.id] ?? []
+  if (!list.length) {
+    p.priceMin = '0.00'
+    p.priceMax = '0.00'
+    return
+  }
+  const cents = list.map((s) => toCents(s.price))
+  p.priceMin = formatCents(Math.min(...cents))
+  p.priceMax = formatCents(Math.max(...cents))
+}
+
+function findCategoryNode(id: number): CategoryTreeVO | null {
+  let found: CategoryTreeVO | null = null
+  const walk = (nodes: CategoryTreeVO[]) => {
+    for (const n of nodes) {
+      if (found) return
+      if (n.id === id) {
+        found = n
+        return
+      }
+      if (n.children) walk(n.children)
+    }
+  }
+  walk(categories)
+  return found
+}
+
+function nextCategoryId(): number {
+  let max = 0
+  const walk = (nodes: CategoryTreeVO[]) => {
+    for (const n of nodes) {
+      max = Math.max(max, n.id)
+      if (n.children) walk(n.children)
+    }
+  }
+  walk(categories)
+  return max + 1
 }
 
 const sorters: Record<Exclude<ProductSort, 'default'>, (a: SeedProduct, b: SeedProduct) => number> = {
@@ -305,7 +384,7 @@ export const productFixtures = {
     const { status: _, ...spu } = p
     return {
       ...spu,
-      skus: skus[id] ?? [],
+      skus: (skus[id] ?? []).map((s) => ({ ...s, stock: stockMap.get(s.id) ?? s.stock })),
       images: images[id] ?? [],
       reviewSummary: avg ? { ratingAvg: avg, reviewCount: productReviews.length } : undefined,
     }
@@ -315,5 +394,206 @@ export const productFixtures = {
     let list = reviews.filter((r) => r.productId === productId && r.status === 1)
     if (q.rating) list = list.filter((r) => r.rating === q.rating)
     return pageOf(list, q.page, q.pageSize)
+  },
+
+  // ---- 供 cart/order mock 使用的 SKU 查询与库存操作 ----
+
+  skuInfo(skuId: number) {
+    for (const p of products) {
+      const sku = (skus[p.id] ?? []).find((s) => s.id === skuId)
+      if (sku) {
+        return {
+          skuId,
+          productId: p.id,
+          productName: p.name,
+          skuSpecs: specsSnapshot(sku.specs),
+          image: sku.image ?? p.mainImage,
+          price: sku.price,
+          stock: stockMap.get(skuId) ?? 0,
+          onSale: p.status === 1,
+        }
+      }
+    }
+    return null
+  },
+
+  /** 条件扣减：库存不足返回 false，模拟后端 stock >= quantity 条件更新 */
+  deductStock(skuId: number, quantity: number): boolean {
+    const cur = stockMap.get(skuId) ?? 0
+    if (cur < quantity) return false
+    stockMap.set(skuId, cur - quantity)
+    return true
+  },
+
+  restoreStock(skuId: number, quantity: number) {
+    stockMap.set(skuId, (stockMap.get(skuId) ?? 0) + quantity)
+  },
+
+  /** 提交评价后追加到商品评价列表，详情页摘要随之更新 */
+  addReview(r: Omit<ReviewVO, 'id' | 'status' | 'createdAt'>): ReviewVO {
+    const review: ReviewVO = {
+      ...r,
+      id: Math.max(0, ...reviews.map((x) => x.id)) + 1,
+      status: 1,
+      createdAt: new Date().toLocaleString('zh-CN', { hour12: false }).replaceAll('/', '-'),
+    }
+    reviews.unshift(review)
+    return review
+  },
+
+  // ---- 管理端操作（与用户端同一份数据，模拟后端同表读写） ----
+
+  /** 管理端商品详情：不过滤下架（公开 detail 只返回上架商品） */
+  adminDetail(id: number): ProductDetailVO {
+    const p = products.find((p) => p.id === id)
+    if (!p) throw new ApiError(40400, '商品不存在')
+    const { status: _, ...spu } = p
+    return {
+      ...spu,
+      skus: (skus[id] ?? []).map((s) => ({ ...s, stock: stockMap.get(s.id) ?? s.stock })),
+      images: images[id] ?? [],
+    }
+  },
+
+  /** 商品分页：不过滤下架，支持关键词与状态筛选 */
+  adminPage(q: AdminProductQuery): PageResult<AdminProductVO> {
+    let list = [...products]
+    if (q.keyword) {
+      const kw = q.keyword.toLowerCase()
+      list = list.filter((p) => p.name.toLowerCase().includes(kw))
+    }
+    if (q.status !== undefined) list = list.filter((p) => p.status === q.status)
+    list.sort((a, b) => b.id - a.id)
+    return pageOf(list.map(toAdminVO), q.page, q.pageSize)
+  },
+
+  /** 新建 SPU：默认上架、无 SKU，价格区间由后续 SKU 重算 */
+  createProduct(dto: ProductSaveDTO): AdminProductVO {
+    const id = Math.max(0, ...products.map((p) => p.id)) + 1
+    const p: SeedProduct = {
+      id,
+      categoryId: dto.categoryId,
+      brandId: dto.brandId,
+      name: dto.name,
+      subtitle: dto.subtitle,
+      mainImage: dto.mainImage,
+      detail: dto.detail,
+      priceMin: '0.00',
+      priceMax: '0.00',
+      sales: 0,
+      status: 1,
+    }
+    products.unshift(p)
+    skus[id] = []
+    images[id] = dto.mainImage ? [dto.mainImage] : []
+    return toAdminVO(p)
+  },
+
+  updateProduct(id: number, dto: ProductSaveDTO): AdminProductVO {
+    const p = products.find((p) => p.id === id)
+    if (!p) throw new ApiError(40400, '商品不存在')
+    p.categoryId = dto.categoryId
+    p.brandId = dto.brandId
+    p.name = dto.name
+    p.subtitle = dto.subtitle
+    p.mainImage = dto.mainImage
+    p.detail = dto.detail
+    return toAdminVO(p)
+  },
+
+  setProductStatus(id: number, status: number) {
+    const p = products.find((p) => p.id === id)
+    if (!p) throw new ApiError(40400, '商品不存在')
+    p.status = status
+  },
+
+  /** 新增 SKU：写可变库存，重算 SPU 价格区间 */
+  addSku(productId: number, dto: SkuSaveDTO): SkuVO {
+    const p = products.find((p) => p.id === productId)
+    if (!p) throw new ApiError(40400, '商品不存在')
+    const id = Math.max(0, ...Object.values(skus).flat().map((s) => s.id)) + 1
+    const sku: SkuVO = {
+      id,
+      skuCode: dto.skuCode ?? `P${productId}-${String(id).padStart(2, '0')}`,
+      specs: dto.specs,
+      price: dto.price,
+      stock: dto.stock,
+      image: dto.image,
+    }
+    ;(skus[productId] ??= []).push(sku)
+    stockMap.set(id, dto.stock)
+    recalcPriceRange(p)
+    return { ...sku }
+  },
+
+  /** 修改 SKU 价格/库存/规格；库存直接改写可变库存（与后台调库存语义一致） */
+  updateSku(skuId: number, dto: Partial<SkuSaveDTO>): SkuVO {
+    for (const p of products) {
+      const sku = (skus[p.id] ?? []).find((s) => s.id === skuId)
+      if (sku) {
+        if (dto.skuCode !== undefined) sku.skuCode = dto.skuCode
+        if (dto.specs !== undefined) sku.specs = dto.specs
+        if (dto.price !== undefined) sku.price = dto.price
+        if (dto.image !== undefined) sku.image = dto.image
+        if (dto.stock !== undefined) {
+          sku.stock = dto.stock
+          stockMap.set(skuId, dto.stock)
+        }
+        recalcPriceRange(p)
+        return { ...sku }
+      }
+    }
+    throw new ApiError(40400, 'SKU 不存在')
+  },
+
+  /** 评价审核列表：含已隐藏，关联商品名 */
+  adminReviews(q: AdminReviewQuery): PageResult<AdminReviewVO> {
+    let list = reviews.map((r) => ({
+      id: r.id,
+      productId: r.productId,
+      productName: products.find((p) => p.id === r.productId)?.name ?? `商品#${r.productId}`,
+      nickname: r.nickname,
+      rating: r.rating,
+      content: r.content,
+      isAnonymous: r.isAnonymous,
+      status: r.status,
+      createdAt: r.createdAt,
+    }))
+    if (q.status !== undefined) list = list.filter((r) => r.status === q.status)
+    return pageOf(list, q.page, q.pageSize)
+  },
+
+  setReviewStatus(id: number, status: number) {
+    const r = reviews.find((r) => r.id === id)
+    if (!r) throw new ApiError(40400, '评价不存在')
+    r.status = status
+  },
+
+  /** 分类管理：返回完整树（含停用位，mock 未建模 status 字段） */
+  adminCategoryTree(): CategoryTreeVO[] {
+    return categories
+  },
+
+  /** 新增（无 id）或编辑（有 id）分类；最多三级 */
+  saveCategory(dto: CategorySaveDTO): CategoryTreeVO {
+    if (dto.id != null) {
+      const node = findCategoryNode(dto.id)
+      if (!node) throw new ApiError(40400, '分类不存在')
+      node.name = dto.name
+      node.sort = dto.sort
+      return node
+    }
+    const id = nextCategoryId()
+    if (dto.parentId === 0) {
+      const node: CategoryTreeVO = { id, parentId: 0, name: dto.name, level: 1, sort: dto.sort, children: [] }
+      categories.push(node)
+      return node
+    }
+    const parent = findCategoryNode(dto.parentId)
+    if (!parent) throw new ApiError(40400, '父分类不存在')
+    if (parent.level >= 3) throw new ApiError(40000, '最多支持三级分类')
+    const node: CategoryTreeVO = { id, parentId: parent.id, name: dto.name, level: parent.level + 1, sort: dto.sort }
+    ;(parent.children ??= []).push(node)
+    return node
   },
 }

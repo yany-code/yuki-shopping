@@ -2,7 +2,14 @@ openapi: 3.0.3
 info:
   title: 由岐商城 API
   version: 1.0.0
-  description: 基于 yuki-shopping 数据库设计的京东类商城学习项目接口。
+  description: |
+    基于 yuki-shopping 数据库设计的京东类商城学习项目接口。
+
+    全局约定：
+    - 金额字段一律以字符串传输（如 "8999.00"，保留 DECIMAL 标度），入参同样接受字符串。
+    - SKU 的 specs 返回对象（如 {"颜色":"黑","容量":"256G"}），不是 JSON 字符串；评价 images 返回 URL 数组；分类树叶子节点 children 为 []。
+    - 业务错误码 = HTTP 状态 × 100：40000 参数错误、40100 未登录、40300 无权限、40400 不存在、40500 方法不支持、40900 状态冲突/库存不足、42900 限流、50000 系统异常。除 40500 伴随 HTTP 405 外，其余错误均返回 HTTP 200 + 统一响应体。
+    - 分页参数不合规（page<1、pageSize 超出 1~100）返回 40000，服务端不静默改写。
 servers:
   - url: /api/v1
     description: 当前服务
@@ -133,11 +140,15 @@ paths:
       summary: 商品分页查询
       parameters:
         - {name: keyword, in: query, schema: {type: string}}
-        - {name: categoryId, in: query, schema: {type: integer, format: int64}}
+        - {name: categoryId, in: query, schema: {type: integer, format: int64},
+           description: 传任意层级分类均可，服务端展开为其自身与全部后代分类下的商品；分类不存在返回 40400}
         - {name: brandId, in: query, schema: {type: integer, format: int64}}
-        - {name: minPrice, in: query, schema: {type: string}}
-        - {name: maxPrice, in: query, schema: {type: string}}
-        - {name: sort, in: query, schema: {type: string, enum: [default, price_asc, price_desc, sales, newest]}}
+        - {name: minPrice, in: query, schema: {$ref: '#/components/schemas/Money'},
+           description: "价格区间按「区间重叠即命中」过滤：商品价区 [priceMin, priceMax] 与查询区间有交集即返回"}
+        - {name: maxPrice, in: query, schema: {$ref: '#/components/schemas/Money'},
+           description: 同 minPrice；价格不得为负且 minPrice ≤ maxPrice，违反返回 40000}
+        - {name: sort, in: query, schema: {type: string, enum: [default, price_asc, price_desc, sales, newest]},
+           description: 非法值返回 40000}
         - {$ref: '#/components/parameters/Page'}
         - {$ref: '#/components/parameters/PageSize'}
       responses: {'200': {$ref: '#/components/responses/Success'}}
@@ -147,7 +158,17 @@ paths:
       security: []
       summary: 商品详情
       parameters: [{name: productId, in: path, required: true, schema: {type: integer, format: int64}}]
-      responses: {'200': {$ref: '#/components/responses/Success'}}
+      responses:
+        '200':
+          description: 商品详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: {$ref: '#/components/schemas/ProductDetail'}
   /products/{productId}/reviews:
     get:
       tags: [评价]
@@ -309,7 +330,56 @@ components:
     BadRequest:
       description: 参数错误
       content: {application/json: {schema: {$ref: '#/components/schemas/ApiResponse'}}}
+    MethodNotAllowed:
+      description: 请求方法不支持（HTTP 405 + 业务码 40500）
+      content: {application/json: {schema: {$ref: '#/components/schemas/ApiResponse'}}}
   schemas:
+    Money:
+      type: string
+      pattern: '^\d+(\.\d{1,2})?$'
+      description: 金额字符串，保留两位小数
+      example: "8999.00"
+    ProductDetail:
+      type: object
+      properties:
+        id: {type: integer, format: int64}
+        categoryId: {type: integer, format: int64}
+        brandId: {type: integer, format: int64}
+        name: {type: string}
+        subtitle: {type: string}
+        mainImage: {type: string, format: uri}
+        detail: {type: string}
+        priceMin: {$ref: '#/components/schemas/Money'}
+        priceMax: {$ref: '#/components/schemas/Money'}
+        sales: {type: integer, format: int64}
+        skus:
+          type: array
+          items: {$ref: '#/components/schemas/Sku'}
+        images:
+          type: array
+          items: {type: string, format: uri}
+        reviewSummary: {$ref: '#/components/schemas/ReviewSummary'}
+    Sku:
+      type: object
+      properties:
+        id: {type: integer, format: int64}
+        skuCode: {type: string}
+        specs:
+          type: object
+          additionalProperties: {type: string}
+          description: 规格组合对象（非 JSON 字符串），无规格时为 {}
+          example: {颜色: 原色钛金属, 容量: 256GB}
+        price: {$ref: '#/components/schemas/Money'}
+        stock: {type: integer}
+        image: {type: string, format: uri}
+    ReviewSummary:
+      type: object
+      properties:
+        avgRating:
+          type: string
+          description: 平均评分（1 位小数，金额同款字符串约定）
+          example: "4.8"
+        reviewCount: {type: integer, format: int64, example: 0}
     ApiResponse:
       type: object
       properties:

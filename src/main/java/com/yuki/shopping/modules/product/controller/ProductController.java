@@ -29,6 +29,7 @@ public class ProductController {
 
     }
 
+    @GetMapping("/{productId}/reviews")
     public ApiResponse<PageResult<ReviewVO>> reviews(@PathVariable Long productId,
                                                      @RequestParam(required = false) Integer rating,
                                                      @RequestParam(defaultValue = "1") long page,
