@@ -95,20 +95,30 @@ public class ProductServiceImpl implements ProductService {
         return new PageResult<>(vos, result.getCurrent(), result.getSize(), result.getTotal());
     }
 
+    /**
+     * 根据条件分页查询
+     * 拼接sql语句
+     * @param query
+     * @return
+     */
     @Override
     public PageResult<ProductListVO> page(ProductQuery query) {
 
+        //检验分页查询页数和页大小是否合规
         validatePaging(query.getPage(), query.getPageSize());
+        //检验价格范围是否合规
         validatePriceRange(query);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<Product>()
                 // deleted = 0 由全局逻辑删除自动拼接
                 .eq(Product::getStatus, 1);
+
         // keyword 命中名称或副标题：两个 LIKE 是 OR，整体再与其他条件 AND
         if (StringUtils.hasText(query.getKeyword())) {
             wrapper.and(w -> w.like(Product::getName, query.getKeyword())
                     .or().like(Product::getSubtitle, query.getKeyword()));
         }
+
         // 分类筛选：传任意层级都展开为其自身 + 全部后代分类（商品只挂在三级分类上）
         if (query.getCategoryId() != null) {
             wrapper.in(Product::getCategoryId, expandCategoryIds(query.getCategoryId()));
@@ -119,6 +129,7 @@ public class ProductServiceImpl implements ProductService {
                 .le(query.getMaxPrice() != null, Product::getPriceMin, query.getMaxPrice());
 
         // sort 白名单翻译，杜绝 ORDER BY 注入；各排序补 id 作稳定次序
+        //排序功能
         String sort = StringUtils.hasText(query.getSort()) ? query.getSort() : "default";
         switch (sort) {
             case "price_asc" -> wrapper.orderByAsc(Product::getPriceMin).orderByAsc(Product::getId);
@@ -132,6 +143,7 @@ public class ProductServiceImpl implements ProductService {
         Page<Product> result = productMapper.selectPage(
                 new Page<>(query.getPage(), query.getPageSize()), wrapper);
         List<ProductListVO> vos = result.getRecords().stream().map(this::toListVO).toList();
+
         return new PageResult<>(vos, result.getCurrent(), result.getSize(), result.getTotal());
     }
 
@@ -208,6 +220,10 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
+    /**
+     * 价格查询参数显示校验
+     * @param query
+     */
     private void validatePriceRange(ProductQuery query) {
         if (query.getMinPrice() != null && query.getMinPrice().signum() < 0
                 || query.getMaxPrice() != null && query.getMaxPrice().signum() < 0) {
@@ -219,7 +235,9 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
-    /** 传任意层级分类，展开为其自身 + 全部后代分类 id（分类表极小，一次查全内存遍历） */
+    /**
+     * 传任意层级分类，展开为其自身 + 全部后代分类 id（分类表极小，一次查全内存遍历）
+     */
     private Set<Long> expandCategoryIds(Long categoryId) {
         List<Category> all = categoryMapper.selectList(null);
         Map<Long, List<Long>> childrenIndex = new HashMap<>();
@@ -245,6 +263,11 @@ public class ProductServiceImpl implements ProductService {
         return ids;
     }
 
+    /**
+     * 解析images的String json为List<String> json
+     * @param json
+     * @return
+     */
     private List<String> parseImages(String json) {
         if (json == null || json.isBlank()) {
             return List.of();
@@ -257,7 +280,9 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
-    /** 库里 specs 是 JSON 字符串，VO 输出结构化对象，前端免二次解析 */
+    /**
+     * 库里 specs 是 JSON 字符串，VO 输出结构化对象，前端免二次解析
+     */
     private Map<String, String> parseSpecs(String json) {
         if (json == null || json.isBlank()) {
             return Map.of();

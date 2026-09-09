@@ -17,6 +17,12 @@ public class BrandController {
 
     private final ProductService productService;
 
+    /**
+     * 分页查询品牌
+     * @param page
+     * @param pageSize
+     * @return
+     */
     @GetMapping
     public ApiResponse<PageResult<BrandVO>> page(@RequestParam(defaultValue = "1") long page,
                                                  @RequestParam(defaultValue = "20") long pageSize) {

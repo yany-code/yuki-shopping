@@ -11,4 +11,11 @@
           AND status = 1
           AND stock &gt;= #{quantity}
     </update>
+
+    <!-- 与 deductStock 对偶：释放是纯加法，无条件且不推进版本 -->
+    <update id="restoreStock">
+        UPDATE t_sku
+        SET stock = stock + #{quantity}
+        WHERE id = #{skuId}
+    </update>
 </mapper>

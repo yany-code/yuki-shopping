@@ -23,4 +23,8 @@ public class PaymentCallbackDTO {
 
     /** 第三方支付交易号 */
     private String tradeNo;
+
+    /** 签名，模拟规则：MD5(paymentNo|status|网关密钥) */
+    @NotBlank
+    private String sign;
 }

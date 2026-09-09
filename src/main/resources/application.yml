@@ -49,6 +49,11 @@ jwt:
   access-token-ttl-minutes: 120
   refresh-token-ttl-days: 7
 
+pay:
+  # 模拟支付网关验签密钥，与网关侧一致；生成：openssl rand -hex 16
+  secret: ${PAY_SECRET}
+  expire-minutes: 30
+
 logging:
   level:
     com.yuki.shopping: INFO

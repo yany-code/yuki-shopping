@@ -45,4 +45,9 @@ public class OrderDetailVO {
 
     /** 订单商品明细 */
     private List<OrderItemVO> items;
+
+    /** 支付信息：最新一条流水的流水号与支付方式，未支付时为 null */
+    private String paymentNo;
+
+    private Integer payType;
 }

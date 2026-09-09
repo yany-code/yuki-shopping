@@ -17,6 +17,10 @@ public class CategoryController {
 
     private final ProductService productService;
 
+    /**
+     * 生成分类品牌层级树
+     * @return
+     */
     @GetMapping("/tree")
     public ApiResponse<List<CategoryTreeVO>> tree() {
         return ApiResponse.ok(productService.categoryTree());

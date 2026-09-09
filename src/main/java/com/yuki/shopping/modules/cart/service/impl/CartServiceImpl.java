@@ -49,8 +49,9 @@ public class CartServiceImpl implements CartService {
                 .stream().collect(Collectors.toMap(Sku::getId, Function.identity()));
         List<Long> productIds = skuMap.values().stream()
                 .map(Sku::getProductId).distinct().toList();
-        // 逻辑删除自动生效：已删商品查不到 → onSale=false
-        Map<Long, Product> productMap = productMapper.selectList(new LambdaQueryWrapper<Product>()
+        // 逻辑删除自动生效：已删商品查不到 → onSale=false；空集合不能进 in()（生成非法 SQL 变 50000）
+        Map<Long, Product> productMap = productIds.isEmpty() ? Map.of()
+                : productMapper.selectList(new LambdaQueryWrapper<Product>()
                         .in(Product::getId, productIds))
                 .stream().collect(Collectors.toMap(Product::getId, Function.identity()));
 
@@ -115,7 +116,9 @@ public class CartServiceImpl implements CartService {
                 .eq(CartItem::getUserId, SecurityUtils.currentUserId()));
     }
 
-    /** 归属校验统一入口：不存在 40400，不属于当前用户 40300（与地址模块同一套约定） */
+    /**
+     *归属校验统一入口：不存在 40400，不属于当前用户 40300（与地址模块同一套约定）
+     */
     private CartItem requireOwnedCartItem(Long id) {
         CartItem item = cartItemMapper.selectById(id);
         if (item == null) {
@@ -127,29 +130,40 @@ public class CartServiceImpl implements CartService {
         return item;
     }
 
-    /** 库里 specs 是 JSON 字符串，VO 输出结构化对象，与详情接口 SkuVO.specs 口径一致 */
+    /**
+     * 库里 specs 是 JSON 字符串，VO 输出结构化对象，与详情接口 SkuVO.specs 口径一致
+     */
     private Map<String, String> parseSpecs(String json) {
         if (json == null || json.isBlank()) {
             return Map.of();
         }
-        try {
+        try {//String 转 Map,方便拿取
             return objectMapper.readValue(json, new TypeReference<Map<String, String>>() { });
         } catch (Exception e) {
             return Map.of(); // 脏数据不打挂接口
         }
     }
 
-    /** 组装实时状态：条目数据来自购物车表，商品/规格/价格来自商品域实时读取 */
+    /**
+     * 组装实时状态：条目数据来自购物车表，商品/规格/价格来自商品域实时读取
+     */
     private CartItemVO toVO(CartItem item, Sku sku, Product product) {
         CartItemVO vo = new CartItemVO();
+
         vo.setId(item.getId());
         vo.setSkuId(item.getSkuId());
         vo.setQuantity(item.getQuantity());
         vo.setChecked(item.getChecked());
+
+        //规格/商品查询
         boolean onSale = sku != null && sku.getStatus() == 1
                 && product != null && product.getStatus() == 1;
         vo.setOnSale(onSale);
+
+         //存量查询
         vo.setStockEnough(onSale && sku.getStock() >= item.getQuantity());
+
+
         if (sku != null) {
             vo.setProductId(sku.getProductId());
             vo.setSkuSpecs(parseSpecs(sku.getSpecs()));
@@ -160,9 +174,11 @@ public class CartServiceImpl implements CartService {
             }
             vo.setImage(image);
         }
+
         if (product != null) {
             vo.setProductName(product.getName());
         }
+
         return vo;
     }
 }

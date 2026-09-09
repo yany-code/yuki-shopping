@@ -3,6 +3,7 @@ package com.yuki.shopping.modules.order.domain;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 /** 订单商品明细，字段为下单时刻快照 */
 @Data
@@ -17,8 +18,8 @@ public class OrderItemVO {
     /** 商品标题(快照) */
     private String productName;
 
-    /** 规格描述(快照)，如 颜色:黑;容量:256G */
-    private String skuSpecs;
+    /** 规格组合(快照)，如 {"颜色":"黑","容量":"256G"}，与购物车/商品详情口径一致 */
+    private Map<String, String> skuSpecs;
 
     /** 图片URL(快照) */
     private String image;
